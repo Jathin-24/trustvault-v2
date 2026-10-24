@@ -199,7 +199,11 @@ are added as each milestone lands, not reconstructed at the end.
   control chars), 4 MB cap checked before and after read (413), storage key is
   a random UUID so the user's filename never touches storage, sha256 computed.
 - status: **closed, tested.** `evil.pdf` with MZ header -> 400
-  `unrecognized file content`; 5 MB file -> 413 `file exceeds 4 MB`.
+  `unrecognized file content`; 5 MB file -> 413 `file exceeds 4 MB`;
+  filename `../../../etc/passwd.txt` -> stored as `passwd.txt` (path
+  segments stripped, storage key still a random UUID); filename
+  `<script>alert(1)</script>.txt` -> tags stripped on upload and escaped
+  again by React on render.
 
 ### Search leaking other users' documents
 - threat: the list endpoint returns everyone's rows and filters in JS (or not
@@ -208,7 +212,32 @@ are added as each milestone lands, not reconstructed at the end.
   `owner_id = me OR id IN (my active grant ids)` — before any row leaves the
   database. wildcards in the name search are stripped; supabase query builder
   parameterises everything (no string-concatenated SQL).
-- status: **closed, tested** (meena's list contains only her docs + shared).
+- status: **closed, tested** (meena's list contains only her docs + shared;
+  `?name=meeting` as meena -> 0 results even though ravi owns
+  meeting-notes.pdf).
+
+### Crafted filter input (SQL-like terms, bad uuids, bad dates)
+- threat: `?name=' OR 1=1--`, `?owner=not-a-uuid`, `?from=banana` — either
+  injection or a 500 that leaks a stack trace.
+- what I did: queries are parameterised (supabase query builder), quotes and
+  wildcards are stripped from filter values, `owner` must match a uuid
+  pattern, dates must match ISO. a bad value now returns
+  `400 {"error":"invalid filter"}` — never a 500, never a leak.
+- status: **closed, tested.**
+  ```
+  ?name=' OR 1=1--        -> 400 invalid filter
+  ?owner=not-a-uuid&from=banana -> 200, invalid parts ignored
+  ```
+
+### CSRF on state-changing routes
+- threat: a malicious site POSTs to /api/documents/[id] while the victim is
+  signed in (browser attaches cookies).
+- what I did: session cookies are `SameSite=Lax` (Clerk default), so
+  cross-site POST/PATCH/DELETE requests don't carry them; requests must also
+  pass `clerkMiddleware`. no custom Origin check implemented.
+- status: **accepted with that mitigation named** — SameSite=Lax covers
+  classic cross-site form posts; a dedicated Origin/Referer check would be
+  the next hardening step if this were exposed to a wider audience.
 
 ### Admin routes reachable by anyone
 - threat: `/api/admin/*` checked only in the UI.
