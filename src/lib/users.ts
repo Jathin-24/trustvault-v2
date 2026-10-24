@@ -30,12 +30,31 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     ?? clerkUser.emailAddresses[0]?.emailAddress
     ?? ''
 
-  // find by clerk_id, insert if missing
+  // find by clerk_id, then by email (lets a seeded row link to the real
+  // clerk account on first sign-in), insert if missing
   let { data: row } = await supabase
     .from('users')
     .select('id, clerk_id, email, name, role, active')
     .eq('clerk_id', userId)
     .maybeSingle()
+
+  if (!row && email) {
+    const { data: byEmail } = await supabase
+      .from('users')
+      .select('id, clerk_id, email, name, role, active')
+      .ilike('email', email)
+      .maybeSingle()
+    if (byEmail) {
+      // claim this row for the signed-in clerk account
+      const { data: linked } = await supabase
+        .from('users')
+        .update({ clerk_id: userId })
+        .eq('id', byEmail.id)
+        .select('id, clerk_id, email, name, role, active')
+        .single()
+      row = linked ?? byEmail
+    }
+  }
 
   if (!row) {
     const { data: inserted, error } = await supabase
