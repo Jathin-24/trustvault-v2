@@ -4,7 +4,8 @@ I can't record this for you. Here's a timed script; every claim is something
 you can point at on screen. Rehearse once, record once.
 
 **Before you record:** sign out of everything, use a fresh private window,
-have the three accounts written on paper (see README).
+have the three accounts written on paper (see README). Live site:
+https://vault-rangammas-projects.vercel.app
 
 ---
 

@@ -6,6 +6,11 @@ and a tamper-evident audit log (append-only + hash chain).
 Built with Next.js 16 (App Router), Clerk (auth), Supabase Postgres +
 Storage (data), deployed on Vercel.
 
+**Live:** https://vault-rangammas-projects.vercel.app
+
+(the `vault.vercel.app` name belongs to an unrelated app; a team project's
+production alias is `<project>-<team>.vercel.app`)
+
 ## Demo accounts
 
 | Account | Role | What it shows |

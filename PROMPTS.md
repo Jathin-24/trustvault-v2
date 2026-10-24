@@ -169,6 +169,36 @@ moving on.
   permanent: **no inline JSON through the shell, ever.**
 - commit: gates re-proven after `7f27bf2`
 
+### 10. the deployment was "Ready" but every URL302'd to a Vercel login page
+- what it said: `vercel --prod` finished, status Ready. to sanity-check the
+  site i probed `https://vault.vercel.app` — got 200, and my brain nearly
+  moved on.
+- what was wrong: two things.
+  1. `vault.vercel.app` is NOT ours — it's a stranger's crates.io dependency
+     visualizer that also happens to be called Vault. i guessed the alias
+     instead of reading `.vercel/project.json`; for a team project the
+     production alias is `vault-rangammas-projects.vercel.app`. i caught it
+     only because i also probed `/nope` → 200 (their SPA serves index.html
+     for everything; our app has a real 404 page).
+  2. the REAL urls (deployment url + team alias) 302'd to
+     `vercel.com/sso-api`: new vercel projects ship with "Protection with
+     Vercel Authentication" ON — `ssoProtection.deploymentType =
+     all_except_custom_domains`. trustvault had been publicly reachable all
+     along only because `trustvault-seven.vercel.app` was added as a custom
+     domain, which that setting exempts. same setting on both projects, one
+     just had a custom domain.
+- fix: found the cli token at `%APPDATA%\com.vercel.cli\Data\auth.json` (not
+  the documented `~/.local/share` path), `GET /v9/projects/{id}` on both
+  projects to compare, then `PATCH /v9/projects/{id}` with
+  `{"ssoProtection": null}`. alias went 302 → public 200, `/nope` → 404,
+  anon `/api/*` → 401 `{"error":"unauthorized"}`. then ran the full
+  production flow signed in as admin: `/api/me` → role admin, upload 201 →
+  download 200 → delete 200 → chain verify `{"valid":true}`.
+- rule: never verify a deployment against a guessed domain. the alias comes
+  from `.vercel/project.json` + the team name, and always probe a route that
+  should 404 so you know it's actually your app.
+- commit: `docs: live URL + deployment-protection story`
+
 ---
 
 ## mid-build credential rotation (logged because it changed all the proof)
