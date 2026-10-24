@@ -121,6 +121,87 @@ moving on.
 - note: production (vercel) does not need the dev browser cookie, only
   development instances do.
 
+### 7. "no prerender issues are expected" — next build actually failed
+- what it said: the frontend agent's report said it did not run `next build`
+  and "with Cache Components, no page reads cookies/headers/DB at request
+  time... no Suspense/prerender issues are expected". i committed to
+  verifying and ran the build myself — good thing.
+- what was wrong: `next build` FAILED. Cache Components refuses to prerender
+  client hooks that need request-time URL/session data:
+  `useAuth()`/`usePathname()` in the header, `useParams()` in the document
+  detail page, Clerk's `<SignIn/>` on the sign-in page —
+  "URL data in a Client Component outside of <Suspense>" on 2 routes.
+- fix: read `node_modules/next/dist/docs/` (the AGENTS.md rule — i had not
+  been reading it before this) and used the docs' canonical `[stream]` fix:
+  Suspense boundaries with skeleton fallbacks in `layout.tsx`,
+  `documents/[id]/page.tsx`, `sign-in/page.tsx`. did NOT use the
+  `instant = false` escape hatch. build is green now: 14/14 pages.
+- lesson: "expected to build" is not "builds". run `next build` after every
+  frontend change, and read the bundled docs before fighting a framework
+  error.
+- commit: `7f27bf2`
+
+### 8. `<SignedIn>`/`<SignedOut>` don't exist in Clerk 7.9.20 — home page was 500ing since M1
+- what it said: M1's landing page used `<SignedIn>`/`<SignedOut>` and i
+  reported the page as done. i only ever curl'd `/api/*` after that, never
+  opened `/`, so the 500 sat there for milestones.
+- what was wrong: clerk 7.9.20 (Core 3) throws at runtime:
+  `Clerk: <SignedIn> is not available in @clerk/nextjs Core 3`.
+  `GET /` → 500 the whole time.
+- fix: the M8 agent replaced them with the `useAuth()` hook + conditional
+  rendering, the pattern this version wants.
+- lesson: hitting the API is not hitting the app. after M1 i should have
+  curled `/` once. every page gets opened at least once, signed out AND
+  signed in, before i call it done.
+- commit: `7f27bf2`
+
+### 9. my own gate scripts kept breaking on PowerShell quoting (3 failed runs)
+- what it said: one-liners with inline JSON for the concurrency test:
+  `'{`"job`:$_}'` … then `'…'{"job":' + $_ + '}';`
+- what was wrong: run 1 → `{"job:1}` (the `":` got eaten — backtick escaping
+  in my own string), run 2 → missing closing `)` → `syntax error at or near
+  ";"`. also `curl -d "<inline json>"` → `Empty or invalid json` (PGRST102)
+  again, the same bug as the M6 gate earlier.
+- fix: build SQL with pure single-quoted concatenation (no backticks), and
+  for curl always write the body to a file + `--data-binary @file`.
+  concurrency then passed: 5 parallel appends → ids 3-7, chain verifies
+  clean. this is the third time PowerShell quoting bit me — the rule is now
+  permanent: **no inline JSON through the shell, ever.**
+- commit: gates re-proven after `7f27bf2`
+
+---
+
+## mid-build credential rotation (logged because it changed all the proof)
+
+user sent new credentials mid-project: new Supabase project
+`ljmdpojcwcqclluselmu` (+ password + service_role) and a new Clerk instance
+`refined-pigeon-7807`. before switching i noticed the OLD database had been
+reset by someone running the old trustvault project's `drop_all.sql` +
+schema demo data (audit rows `{"job": N}`/`{"demo": "row 1"}` at 01:49-01:51
+— not mine), so nothing of value was lost.
+
+what i re-did, all re-proven from scratch on the new backend:
+- `db/schema.sql` + `db/gate.sql` → chain works, UPDATE/DELETE/TRUNCATE all
+  blocked, tamper → `first_bad_id = 1` → restore → `null`
+- 5 concurrent `append_audit` via parallel psql → ids 3-7 interleaved,
+  `verify_audit_chain()` → null
+- anon key gates with the NEW publishable key: `/rest/v1/documents` 200 [],
+  `/rest/v1/users` 200 [], `/rest/v1/audit_log` 401, `rpc/append_audit`
+  401 permission denied for function, direct insert 401
+- `.env.local` + all 6 Vercel env vars rotated (`--value --force`, no stdin
+  piping), dev server restarted to load them
+- test users recreated in the new Clerk instance (fresh dev-browser
+  handshake), admin promoted **by hand in SQL** again (never automatic),
+  `scripts/seed.mjs` → 5 docs + 3 grants
+- full M3-M7 curl gates re-run: 401 anon ×6, 404 ungranted ×4 + denied audit
+  rows, owner_id spoof ignored, guessed id 404, exe-as-pdf 400, 5MB 413,
+  grant → 200 → revoke → **very next** 404, deactivate → 401, non-admin →
+  404 on all admin routes + `admin_access/denied` rows, verify →
+  `{"valid":true}`
+
+every gate that was proven on the old database was re-proven on the new one.
+no claim in this repo rests on the old backend.
+
 ---
 
 ## how commits are written
