@@ -132,18 +132,29 @@ export async function GET(req: NextRequest) {
   }
 
   // --- search filters ---
-  if (name) query = query.ilike('name', `%${name.replace(/[%_]/g, '')}%`)
-  if (category) query = query.eq('category', category)
+  // strip %, _ and quotes so a crafted term can't break the like pattern
+  // or the PostgREST parser (parameterised already, this keeps errors clean)
+  if (name) {
+    const clean = name.replace(/[%_'",;()]/g, '').trim().slice(0, 200)
+    if (clean) query = query.ilike('name', `%${clean}%`)
+  }
+  if (category) query = query.eq('category', category.replace(/[%_'",;()]/g, '').slice(0, 100))
   if (owner === 'me') query = query.eq('owner_id', user.id)
   if (owner === 'other') query = query.neq('owner_id', user.id)
-  if (owner && owner !== 'me' && owner !== 'other') query = query.eq('owner_id', owner)
-  if (from) query = query.gte('created_at', from)
-  if (to) query = query.lte('created_at', to)
+  if (owner && owner !== 'me' && owner !== 'other' && /^[0-9a-f-]{36}$/i.test(owner)) {
+    query = query.eq('owner_id', owner)
+  }
+  const isoDate = (v: string | null) => v && /^\d{4}-\d{2}-\d{2}/.test(v) ? v : null
+  const fromDate = isoDate(from)
+  const toDate = isoDate(to)
+  if (fromDate) query = query.gte('created_at', fromDate)
+  if (toDate) query = query.lte('created_at', toDate)
 
   const { data, error } = await query.order('created_at', { ascending: false }).limit(200)
 
   if (error) {
-    return NextResponse.json({ error: 'query failed' }, { status: 500 })
+    // a malformed filter value is the caller's fault, not a server error
+    return NextResponse.json({ error: 'invalid filter' }, { status: 400 })
   }
 
   return NextResponse.json({ documents: data ?? [] })
