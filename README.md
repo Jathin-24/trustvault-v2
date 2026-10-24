@@ -113,5 +113,30 @@ All routes are server-side; 401 = no session, 404 = denied or missing.
 ## Deliberately not built
 
 folders and groups (categories only), version history, external sharing /
-signed URLs, per-user quota, rate limiting, automated tests (see THREATS.md
-→ accepted risks — this is a known gap, not an oversight).
+signed URLs, per-user quota, rate limiting (see THREATS.md → accepted
+risks — each one is named, not hidden).
+
+## Tests
+
+```bash
+npm test
+```
+
+Two tiers:
+
+- **Unit** (`tests/unit/`) — always runs, no server or credentials needed:
+  the `authorize()` default-deny matrix (owner/grant/revoked/admin/soft-
+  delete), upload validation (magic bytes, 4 MB cap, traversal names,
+  declared-vs-real type), the 404-not-403 wrapper + denial auditing, and
+  never-auto-admin.
+- **Integration** (`tests/integration/gates.test.ts`) — the M3-M7 gate
+  matrix against a running app: 401 signed-out everywhere, 404 ungranted,
+  spoofed `owner_id` ignored, exe → 400, 5 MB → 413, grant → revoke →
+  very next request 404, member → 404 on admin routes, admin verify
+  `{valid: true}`, deactivation → 401. It **skips itself with a printed
+  reason** when no dev server is reachable at `VAULT_BASE_URL` (default
+  `http://localhost:3001`) or `.env.local` is missing — so a fresh clone
+  still gets a green `npm test`.
+
+Run it against production: `VAULT_BASE_URL=https://vault-rangammas-projects.vercel.app npm test`
+(PowerShell: `$env:VAULT_BASE_URL = '...'; npm test`).

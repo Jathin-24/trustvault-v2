@@ -101,6 +101,20 @@ Sign in as `admin@vaultdemo.com`. Audit filters, Verify button, user list
 
 **Shot:** admin audit table + verify green.
 
+## 4:45 — The suite (15 s)
+
+```bash
+npm test
+```
+
+> "47 unit tests cover the decision logic without a server; the 18
+> integration tests are this exact gate matrix running against the app —
+> the same 401/404/revoke checks I showed you, executable. On a fresh
+> clone without credentials they skip themselves with a reason instead of
+> pretending to pass."
+
+**Shot:** terminal: `65 passed`, exit 0.
+
 ## 5:00 — Close
 
 > "Closed: anon-key table access (RLS, no policies), forged audit rows (no
@@ -121,7 +135,8 @@ Sign in as `admin@vaultdemo.com`. Audit filters, Verify button, user list
 6. Revoke → Meena's next download 404 → four audit rows in order
 7. SQL editor: disable trigger → edit → `verify_audit_chain() = 1` → restore → `null`
 8. Admin: audit filters, verify green, user list
-9. `THREATS.md` on screen for the honest-accepted-risks line
+9. Terminal: `npm test` → 65 passed
+10. `THREATS.md` on screen for the honest-accepted-risks line
 
 ## Backup lines (if a judge asks)
 

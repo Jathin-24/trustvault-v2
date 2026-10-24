@@ -271,13 +271,30 @@ are added as each milestone lands, not reconstructed at the end.
 - accepted, same as above: mitigated by the 4 MB cap, not by a quota.
   (from D5/D7: uploading makes you an owner of that document only.)
 
-### No automated tests (brief item 10)
-- accepted by choice. the brief says judges may remove one check and run the
-  tests — skipping this will cost marks in Functionality and Threat thinking,
-  and I am saying that plainly rather than writing "all tested" anywhere.
-  what exists instead: every gate in M2-M7 was proven by hand with real
-  psql/curl output, recorded in PROMPTS.md and the commit messages.
-  status: **accepted, known gap.**
+### Automated tests (brief item 10)
+- was listed here as a known gap; **built later as M11** after I was asked
+  to do it. `npm test` now runs two tiers:
+  - **47 unit tests, no server/credentials**: `authorize()` default-deny
+    matrix (owner / read grant / edit grant / revoked / admin / soft-
+    deleted), upload validation (magic bytes, 4 MB cap, traversal names,
+    declared-vs-real mismatch), the 404-not-403 wrapper + denial audit rows,
+    never-auto-admin + deactivation.
+  - **18 integration tests** against a running app: the exact M3-M7 gate
+    matrix from this file (401 signed-out ×9 routes, 404 ungranted ×4,
+    spoofed owner_id, exe → 400, 5 MB → 413, malformed JSON → 400,
+    sql-ish filter → 400, grant → revoke → very next 404, member → 404 on
+    admin routes, admin verify `{valid: true}`, deactivate → 401). It
+    skips itself with a printed reason when the app isn't reachable, so a
+    fresh clone still gets green without lying about coverage.
+- honest scope of what is still NOT covered: no browser/UI end-to-end
+  tests (the frontend is exercised by hand — see DEMO.md), no load or
+  rate-limit tests (there is no rate limiting — above), the SQL layer is
+  proven separately by `db/gate.sql` (run with psql, not vitest).
+- admin-dependent integration tests skip until `admin@vaultdemo.com` is
+  promoted by hand — promotion is deliberately manual (D5), tests don't
+  get a back door. Clerk session tokens (60 s TTL) are re-minted every
+  ≤40 s by the harness itself.
+- status: **closed.** 65/65 green (`npm test`), lint 0/0, build green.
 
 ### Clerk development keys on the deployed site
 - accepted until a custom domain is configured: the site runs on

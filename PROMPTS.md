@@ -54,7 +54,10 @@ list", print the full column list.
 
 what happened: M0 decisions (D1-D11) confirmed from the blueprint chat, then
 M1 -> M11 built in order, gates proven with real curl/psql output before
-moving on.
+moving on. one exception, said plainly: M11 (automated tests) was first
+recorded as a known gap in THREATS.md and only built later, after I was
+asked to do it — building it exposed two more of my own mistakes, logged
+below as 11 and 12.
 
 ---
 
@@ -198,6 +201,45 @@ moving on.
   from `.vercel/project.json` + the team name, and always probe a route that
   should 404 so you know it's actually your app.
 - commit: `docs: live URL + deployment-protection story`
+
+### 11. my test suite skipped itself because i used Vite's own env var name
+- what it said: the integration tests read `process.env.BASE_URL` for the
+  target host with `?? 'http://localhost:3001'` — "safe" default.
+- what was wrong: vite/vitest SETS `process.env.BASE_URL = '/'` (its config
+  base) inside the test worker, so `??` never fell through, and stripping
+  the trailing slash turned `'/'` into `''` → `fetch('/api/me')` →
+  "Failed to parse URL". every run went green by skipping ALL integration
+  tests, with a message showing an empty host. a suite that silently
+  skips itself is worse than no suite — green where nothing was tested.
+- fix: renamed the override to `VAULT_BASE_URL` (Vite reserves BASE_URL)
+  and hard-validate the value against `^https?://` before using it — `BASE`
+  can never be empty now. also raised the reachability probe from 4s to
+  45s: a cold `next dev` compiles routes on the FIRST request (slow with
+  OneDrive) and the short probe called a healthy server "unreachable".
+- lesson: `?? default` is not a default when something upstream rewrites
+  the variable — validate the VALUE. and skip paths must be loud: the
+  printed skip reason is the only reason I caught this.
+- commit: `feat(m11)`
+
+### 12. my own suite fell over at the 60-second mark (auth, again)
+- what it said: mint one session token per user in `beforeAll` and reuse it
+  for the whole run — same as my manual curl batteries.
+- what was wrong: every manual battery re-ran `get-cookie.ps1`, so it always
+  had a fresh token. a vitest run takes ~60-80 s and Clerk dev session
+  tokens live ~60 s: the first 14 tests passed, then every signed-in call
+  after the first minute returned 401 — the last 4 tests failed exactly
+  where the clock ran out.
+- fix: `freshCookie()` in `tests/helpers/clerk.ts` re-mints a token from the
+  SAME session whenever the current one is older than 40 s, before every
+  request — the silent refresh a browser does for free. 18/18 green after.
+  and because the failing run's `afterAll` cleanup ALSO ran on a stale
+  cookie, its 3 leftover documents needed a manual purge afterwards —
+  storage objects too (supabase blocks direct `storage.objects` deletes:
+  `protect_delete` trigger, use the storage API with the service role).
+- lesson: an auth harness must refresh its own credentials, never assume a
+  token outlives the suite — and cleanup code needs working auth even more
+  than the tests do, or failures leave litter behind.
+- commit: `feat(m11)`
 
 ---
 
