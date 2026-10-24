@@ -18,7 +18,6 @@ export const ALLOWED: Record<string, { mime: string; ext: string[] }> = {
 /** Strip directories, control chars and path separators from a filename. */
 export function sanitizeName(raw: string): string {
   const base = raw.split(/[\\/]/).pop() ?? 'file'
-  // eslint-disable-next-line no-control-regex
   return base.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 255)
 }
 

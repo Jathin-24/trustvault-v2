@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { ClerkProvider } from '@clerk/nextjs'
 import { Geist, Geist_Mono } from 'next/font/google'
+import { Suspense } from 'react'
+import { SiteHeader } from '@/components/site-header'
 import './globals.css'
 
 const geistSans = Geist({
@@ -26,7 +28,21 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
-        <ClerkProvider>{children}</ClerkProvider>
+        <ClerkProvider>
+          {/* The header reads auth + URL state that only exist at request
+              time; under Cache Components that must sit behind a Suspense
+              boundary so the static shell can prerender without it. */}
+          <Suspense
+            fallback={
+              <header className="border-b border-gray-200 bg-white">
+                <div className="mx-auto h-14 max-w-5xl px-6" />
+              </header>
+            }
+          >
+            <SiteHeader />
+          </Suspense>
+          <main className="flex-1">{children}</main>
+        </ClerkProvider>
       </body>
     </html>
   )

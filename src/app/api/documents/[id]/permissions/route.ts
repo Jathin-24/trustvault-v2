@@ -3,7 +3,6 @@ import { headers } from 'next/headers'
 import { requireDocAccess } from '@/lib/require-doc-access'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { logAudit } from '@/lib/audit'
-import { getCurrentUser } from '@/lib/users'
 
 /**
  * GET /api/documents/[id]/permissions — owner only (list grants).

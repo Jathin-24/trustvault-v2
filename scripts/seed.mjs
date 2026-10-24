@@ -130,7 +130,7 @@ const contract = await ensureDocument({
   category: 'contracts',
   bodyText: 'seed: rental agreement between ravi and tenant',
 })
-const notes = await ensureDocument({
+await ensureDocument({
   ownerEmail: 'ravi@vaultdemo.com',
   ids,
   name: 'meeting-notes.pdf',
